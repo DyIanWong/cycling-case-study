@@ -1,0 +1,442 @@
+---
+title: "How do casual riders and annual members use Cyclistic bikes differently?"
+author: "Dylan Wong"
+date: "2024-06-20"
+output: html_document
+---
+
+<br>
+
+## 1.0 Introduction
+
+<br>
+
+This document identifies the key similarities and differences in the way that annual members and casual riders use Cyclistic bikes. In this way, the findings will help to develop a new marketing strategy that converts casual riders into annual members.
+
+<br>
+
+There were several findings that showed the similarities and differences of annual and casual users:
+
+- Proportion of electric bikes and classic bikes used
+- Duration of rides
+- Returning to the same location
+- Start locations
+- Most popular day of the week
+
+<br>
+
+## 1.1 Import packages and load data
+
+<br>
+
+```{r, message = FALSE}
+#visualisation and data manipulation
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+
+#palettes and fonts
+library(paletteer)
+library(extrafont)
+
+#dataset
+dataset <- read_csv("202405.csv")
+
+#dataset with new column "duration"
+new_df <- dataset %>%
+  mutate(
+    duration = as.numeric(difftime(ended_at, started_at,units = c("mins"))),
+    day_of_the_week = wday(started_at, label = TRUE, abbr = FALSE)
+  )
+```
+This loads the packages necessary for data visualisation, data manipulation, and palette creation. Additionally, we added new columns "duration" and "day_of_the_week". This states the duration of each bike trip and the day of the week that it happened.
+
+The dataset has been directly sourced from Cyclistic's database and features data collected during May 2024. As it has been sourced first-party, the data can be deemed credible. However, there are many records missing which will be be dealt with further on.
+
+<br>
+
+## 1.2 Data check
+
+<br>
+
+```{r echo=TRUE}
+glimpse(new_df)
+```
+
+Here we check the number of records, the columns (or variables), and the data type used for each column.
+
+<br>
+
+Brief summary:
+
+- There are 609,493 instances of both casual and annual bikers using Cyclistic
+- There are 15 variables/columns
+- 8 of these variables relates to the starting location and ending location
+- 2 of these variables is the starting time and ending time
+- A new column "duration" has been added to make use of the starting time and ending time
+- A new column "day_of_the_week" has been added
+
+<br>
+Here is a summary of each column/variable:
+
+<br>
+
+```{r echo=FALSE}
+variable_descriptions <- data.frame(
+  variables = c("ride_id", "rideable_type", "started_at", "ended_at", "start_station_name", "start_station_id", "end_station_name", "end_station_id", "start_lat", "start_lng", "end_lat", "end_lng", "member_casual", "duration"),
+  descriptions = c("ID", "The type of bike; either classic or electric", "The date and time of bike starting", "The date and time of bike stopping", "The start location of the bike", "The start station ID", "The end location of the bike", "The end station ID", "The starting latitude", "The starting longitude", "The ending latitude", "The ending longitude", "The type of customer; either member or casual", "The duration of the trip")
+)
+
+kable(variable_descriptions, format = "markdown", align = "l") %>%
+  kable_styling(full_width = FALSE, position = "left")
+```
+
+<br>
+
+## 1.3 Data cleaning
+
+<br>
+
+Due to the very large sample of data, any record missing a value in any of the columns/variables will be dropped. 
+
+```{r echo=TRUE}
+
+new_df <- drop_na(new_df)
+
+nrow(new_df)
+
+```
+
+There are now 442,168 records left.
+
+<br>
+
+## 2.0 Comparison of the use of electric bikes and classic bikes
+
+<br>
+
+```{r echo=FALSE}
+ggplot(data = new_df) +
+  geom_bar(mapping = aes(x = rideable_type, fill = rideable_type)) +
+  facet_wrap(~member_casual) +
+  labs(title = "", x =  "", y = "Number of instances")  +
+  scale_fill_paletteer_d("nationalparkcolors::Acadia", direction = -1, name = "Bike Type", labels = c("Classic Bike", "Electric Bike")) +
+  scale_x_discrete(labels = c("Classic Bike", "Electric Bike"))
+```
+
+Both casual riders and annual members exhibit similar behaviours when selecting bikes. Classic bikes are used more than twice that of electric bikes for both casual riders and annual members.
+
+<br>
+
+## 2.1 Comparison of the duration of rides
+
+<br>
+
+Let's find the average duration of each ride for casual riders and annual members.
+
+<br>
+
+```{r echo=FALSE}
+average_durations <- new_df %>%
+  group_by(member_casual) %>%
+  summarise(average_duration = mean(duration))
+
+average_durations
+```
+
+The average duration of a ride made by a casual rider is 26.9 minutes and the average duration made by an annual member is 13.3 minutes.
+
+This suggests that the average casual rider typically rides for 13.6 minutes longer than the average annual member.
+
+<br>
+
+```{r echo=FALSE}
+ggplot(data = average_durations) +
+  geom_bar(stat = "identity", mapping = aes(x = member_casual, y = average_duration, fill = member_casual)) + 
+  scale_fill_paletteer_d("nationalparkcolors::Acadia") +
+  labs(y = "Average Duration (minutes)", x = "Membership Type", title = "Average duration of use") +
+  guides(fill = guide_legend(title = "Membership type"))
+```
+
+
+## 2.2 Do casual riders and annual members return to the same location?
+
+<br>
+
+```{r echo=FALSE}
+same_location <- new_df %>%
+  filter(start_station_id == end_station_id) %>%
+  group_by(member_casual) %>%
+  summarize(count = n())
+
+
+ggplot(data = same_location) +
+  geom_bar(stat = "identity", mapping = aes(x = member_casual, y = count, fill = member_casual)) +
+  scale_fill_paletteer_d("LaCroixColoR::Apricot") +
+  labs(x = "Membership Type", y = "Count", title = "The no. of times a bike is returned to the same location") +
+  guides(fill = guide_legend(title = "Membership Type"))
+```
+
+
+Let's find the number of times a bike is returned to the same location where it started.
+
+<br>
+
+```{r echo=FALSE}
+same_location
+```
+
+Casual riders had returned their bike back to the same location in 19,347 instances while annual members had returned their bike to the same location 11,671 times.
+
+<br>
+
+```{r echo=FALSE}
+membership <- new_df %>%
+  group_by(member_casual) %>%
+  summarize(count = n())
+
+membership
+```
+
+Here we see that there were 167,483 casual uses and 274,685 annual member uses.
+
+This means that 11.6% of casual bikers returned to the same location. Only 4.2% of annual members returned, which is half that of casual bikers.
+
+<br>
+
+## 2.3 Where do casual riders and annual members start their ride?
+
+<br>
+
+```{r}
+length(unique(new_df$start_station_id))
+```
+
+<br>
+
+There was 1213 unique starting locations of Cyclistic bikes. To identify the most popular starting locations for casual bikers, only the ten most popular starting locations will be listed.
+
+<br>
+
+This shows the exact number of uses in each of the most popular starting locations, for casual riders:
+
+```{r echo=FALSE}
+casual_start_count <- new_df %>%
+  filter(member_casual == "casual") %>%
+  group_by(start_station_name) %>%
+  summarize(count = n()) %>%
+  arrange(-count) %>%
+  slice_head(n = 10) %>%
+  mutate(start_station_name = fct_reorder(start_station_name, -count))
+  
+
+arrange(casual_start_count, -count)
+```
+
+<br>
+
+```{r echo=FALSE, fig.height=5, warning=TRUE}
+
+ggplot(data = casual_start_count) +
+  geom_col(mapping = aes(x = count, y = start_station_name, fill = start_station_name)) +
+  labs(x = "Number of Occurrences", y = "", title = "Most popular starting locations for casual riders") +
+  scale_fill_paletteer_d("colorBlindness::Blue2Orange12Steps", -1)
+```
+
+<br>
+
+<hr>
+
+<br>
+
+Like previously, only the ten most popular starting locations for annual members will be listed.
+
+<br>
+
+This shows the exact number of uses in each of the most popular starting locations, for annual members:
+
+```{r echo=FALSE}
+
+member_start_count <- new_df %>%
+  filter(member_casual == "member") %>%
+  group_by(start_station_name) %>%
+  summarize(count = n()) %>%
+  arrange(-count) %>%
+  slice_head(n = 10) %>% 
+  mutate(start_station_name = fct_reorder(start_station_name, -count))
+
+member_start_count
+```
+
+<br>
+
+```{r echo=FALSE, fig.height=5, warning=TRUE}
+ggplot(data = member_start_count) +
+  geom_col(mapping = aes(x = count, y = start_station_name, fill = start_station_name)) +
+  labs(x = "Number of Occurrences", y = "", title = "Most popular starting locations for annual members") +
+  scale_fill_paletteer_d("colorBlindness::Blue2Orange12Steps", -1)
+```
+
+<br>
+
+```{r echo=TRUE}
+intersect(casual_start_count$start_station_name, member_start_count$start_station_name)
+```
+<br>
+
+Casual riders and annual members had one popular location in common: DuSable Lake Shore Dr & North Blvd.
+
+For casual riders, there was 2485 instances of this location.
+
+For annual members, there was 1803 instances of this location.
+
+
+<br>
+
+# 2.4 What are the most popular days for casual riders and annual members to use Cyclistic?
+
+<br>
+
+```{r echo=FALSE}
+casual_days_count <- new_df %>%
+  filter(member_casual == "casual") %>%
+  group_by(day_of_the_week) %>%
+  summarize(count = n()) %>%
+  mutate(day_of_the_week = fct_reorder(day_of_the_week, -count))
+
+ggplot(data = casual_days_count) +
+  geom_col(mapping = aes(x = count, y = day_of_the_week, fill = day_of_the_week)) +
+  labs(x = "Number of Occurrences", y = "Day", title = "Most popular days for casual riders") +
+  scale_fill_paletteer_d("rcartocolor::DarkMint", -1)
+```
+
+<br>
+
+The following shows the number of uses of Cyclistic bikes each day of the week (for casual bikers):
+
+```{r echo=TRUE}
+arrange(casual_days_count, -count)
+```
+
+
+<br>
+
+For casual bikers here, the most popular days are Saturday, Friday, and Sunday.
+
+<br>
+
+<hr>
+
+<br>
+
+```{r echo=FALSE}
+annual_days_count <- new_df %>%
+  filter(member_casual == "member") %>%
+  group_by(day_of_the_week) %>%
+  summarize(count = n()) %>%
+  mutate(day_of_the_week = fct_reorder(day_of_the_week, -count))
+
+ggplot(data = annual_days_count) +
+  geom_col(mapping = aes(x = count, y = day_of_the_week, fill = day_of_the_week)) +
+  labs(x = "Number of Occurrences", y = "Day", title = "Most popular days for annual members") +
+  scale_fill_paletteer_d("rcartocolor::DarkMint", -1)
+```
+<br>
+
+The following shows the number of uses of Cyclistic bikes each day of the week (for annual members):
+
+```{r echo=TRUE}
+arrange(annual_days_count, -count)
+```
+
+
+<br>
+For annual bikers here, the most popular days are Wednesday, Friday, Thursday.
+
+<br>
+
+<br>
+
+# 3.0 Summary of findings
+
+<br>
+
+- Both casual riders and annual members prefer classic bikes over electric bikes, with classic bikes being used more than twice as much as electric bikes.
+
+- Average ride duration: Casual riders ride for an average of 26.9 minutes, while annual members ride for 13.3 minutes on average, indicating casual riders typically ride 13.6 minutes longer.
+
+- Return behavior: Casual riders returned bikes to the same location 19,347 times, compared to 11,671 times by annual members. This reflects 11.6% return rate for casual riders and 4.2% for annual members.
+
+- Common popular location: DuSable Lake Shore Dr & North Blvd is among the top ten most popular locations for both casual riders and annual members.
+
+- Popular days for casual riders: Saturday, Friday, and Sunday.
+
+- Popular days for annual members: Wednesday, Friday, and Thursday.
+
+- The ten most popular starting locations for casual riders are the following:
+  - Streeter Dr & Grand Ave	
+  - DuSable Lake Shore Dr & Monroe St			
+  - Michigan Ave & Oak St		
+  - DuSable Lake Shore Dr & North Blvd
+  - Millennium Park
+  - Shedd Aquarium
+  - Dusable Harbor
+  - Theater on the Lake
+  - Adler Planetarium
+  - Buckingham Fountain
+
+<br>
+
+# 3.1 Recommendations
+
+<br>
+
+#### Recommendation \#1
+
+
+To convert casual riders into annual members based on the average ride duration findings (26.9 minutes for casual riders and 13.3 minutes for annual members), a pricing strategy could focus on promoting the cost-effectiveness and value proposition of annual membership. Here’s a pricing strategy to consider:
+
+
+Introduce additional perks or benefits to appeal to frequent users who ride longer durations. This could include priority access to bikes during peak hours and extended ride durations without additional charges.
+
+<br>
+
+#### Recommendation \#2
+
+
+To encourage casual riders who prefer riding on Saturdays, Fridays, and Sundays to join annual membership, the marketing team should introduce incentives to enhance the value of annual memberships on these days. Here's a proposition:
+
+Offer exclusive discounts specifically for weekends (Saturday and Sunday) and Friday to annual members. Be sure to highlight the savings compared to pay-as-you-go rates on these days.
+
+<br>
+
+#### Recommendation \#3
+
+
+Based on the list of the ten most popular starting locations for casual riders, here's a recommendation:
+
+Improve bike availability and station amenities at these high-traffic starting locations to enhance the user experience for both casual riders and potential annual members.
+
+
+<br>
+
+
+# 3.2 Further comments
+
+<br>
+
+#### Data integrity consideration:
+
+It's important to note that the analysis presented here is based on records where missing values were removed. Had these records been retained, the proportion of electric bikes versus classic bikes would likely have been closer to a 1:1 ratio. This highlights a potential inconsistency and suggests that further investigation into data completeness and reliability may be required.
+
+<br>
+
+#### Seasonal variation impact:
+
+The data utilized in this study was sourced exclusively from May 2024. It's crucial to acknowledge that this timeframe may not capture seasonal variations in bike usage patterns. Seasonal factors such as weather conditions, tourism trends, and local events can significantly influence bike share utilization. Therefore, while the insights drawn from the data provide valuable information, the lack of seasonal variation consideration may impact the overall reliability of these findings.
+
+<br>
+
+<br>
+
+
